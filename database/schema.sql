@@ -31,7 +31,7 @@ CREATE TABLE students (
 CREATE TABLE courses (
     course_id    SERIAL PRIMARY KEY,
     course_code  VARCHAR(20) UNIQUE NOT NULL,   -- e.g. CS101
-    course_name  VARCHAR(200) NOT NULL,
+    course_name  VARCHAR(200) NOT NULL,\
     credits      INT DEFAULT 3,
     description  TEXT
 );
