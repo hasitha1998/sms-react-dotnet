@@ -6,64 +6,49 @@
 
 using Dapper;      // lightweight ORM — maps SQL results to C# objects
 using Npgsql;      // PostgreSQL driver for .NET
+using System.Data; // needed for DbType.Date
 
 public class StudentService
 {
-    // Connection string loaded from appsettings.json
     private readonly string _conn;
 
-    // IConfiguration is injected automatically by ASP.NET Core
     public StudentService(IConfiguration config)
     {
         _conn = config.GetConnectionString("DefaultConnection")!;
     }
 
-    // ============================================================
-    // GET ALL STUDENTS
-    // Calls: fn_get_all_students() — PostgreSQL FUNCTION
-    // Returns: list of all students ordered by last name
-    // ============================================================
+    // GET ALL STUDENTS — calls fn_get_all_students()
     public async Task<IEnumerable<Student>> GetAllAsync()
     {
-        // 'using' ensures the DB connection closes automatically when done
         using var db = new NpgsqlConnection(_conn);
-
-        // SELECT * FROM function() — functions return table results
         return await db.QueryAsync<Student>("SELECT * FROM fn_get_all_students()");
     }
 
-    // ============================================================
-    // GET ONE STUDENT BY ID
-    // Calls: fn_get_student_by_id(id) — PostgreSQL FUNCTION
-    // Returns: single student or null if not found
-    // ============================================================
+    // GET ONE STUDENT BY ID — calls fn_get_student_by_id(id)
     public async Task<Student?> GetByIdAsync(int id)
     {
         using var db = new NpgsqlConnection(_conn);
-
-        // QueryFirstOrDefaultAsync returns one result, or null if no rows
         return await db.QueryFirstOrDefaultAsync<Student>(
             "SELECT * FROM fn_get_student_by_id(@p_student_id)",
-            new { p_student_id = id }  // anonymous object maps parameter names
+            new { p_student_id = id }
         );
     }
 
-    // ============================================================
-    // ADD A NEW STUDENT
-    // Calls: sp_add_student(...) — PostgreSQL PROCEDURE
-    // ExecuteAsync is used for CALL (procedures don't return data)
-    // ============================================================
+    // ADD A NEW STUDENT — calls sp_add_student(...)
+    // DbType.Date ensures date is sent correctly without time component
     public async Task AddAsync(Student s)
     {
         using var db = new NpgsqlConnection(_conn);
 
-        // DynamicParameters lets you add params one by one — clearer than anonymous object
         var parameters = new DynamicParameters();
-        parameters.Add("p_first_name",    s.FirstName);
-        parameters.Add("p_last_name",     s.LastName);
-        parameters.Add("p_email",         s.Email);
-        parameters.Add("p_phone",         s.Phone);
-        parameters.Add("p_date_of_birth", s.DateOfBirth);
+        parameters.Add("p_first_name", s.FirstName);
+        parameters.Add("p_last_name",  s.LastName);
+        parameters.Add("p_email",      s.Email);
+        parameters.Add("p_phone",      s.Phone);
+        // DbType.Date strips the time portion — avoids type mismatch with PostgreSQL DATE column
+        parameters.Add("p_date_of_birth",
+            s.DateOfBirth.HasValue ? s.DateOfBirth.Value.Date : (DateTime?)null,
+            DbType.Date);
 
         await db.ExecuteAsync(
             "CALL sp_add_student(@p_first_name, @p_last_name, @p_email, @p_phone, @p_date_of_birth)",
@@ -71,10 +56,7 @@ public class StudentService
         );
     }
 
-    // ============================================================
-    // UPDATE AN EXISTING STUDENT
-    // Calls: sp_update_student(...) — PostgreSQL PROCEDURE
-    // ============================================================
+    // UPDATE AN EXISTING STUDENT — calls sp_update_student(...)
     public async Task UpdateAsync(Student s)
     {
         using var db = new NpgsqlConnection(_conn);
@@ -92,15 +74,11 @@ public class StudentService
         );
     }
 
-    // ============================================================
-    // DELETE A STUDENT
-    // Calls: sp_delete_student(id) — PostgreSQL PROCEDURE
+    // DELETE A STUDENT — calls sp_delete_student(id)
     // ON DELETE CASCADE removes their enrollments + grades too
-    // ============================================================
     public async Task DeleteAsync(int id)
     {
         using var db = new NpgsqlConnection(_conn);
-
         await db.ExecuteAsync(
             "CALL sp_delete_student(@p_student_id)",
             new { p_student_id = id }

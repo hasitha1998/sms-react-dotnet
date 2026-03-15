@@ -9,6 +9,10 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Tell Dapper to map snake_case DB columns (first_name) to PascalCase C# properties (FirstName)
+// Without this, edit form won't populate because the data fields come back as null
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+
 // ============================================================
 // REGISTER SERVICES (Dependency Injection)
 // Services registered here can be injected into Controllers
